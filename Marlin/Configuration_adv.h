@@ -1,3 +1,5 @@
+// Try speeding up probing - https://www.crosslink.io/2022/04/29/ultra-fast-probing-and-homing-with-marlin-firmware/
+
 /**
  * Marlin 3D Printer Firmware
  * Copyright (c) 2020 MarlinFirmware [https://github.com/MarlinFirmware/Marlin]
