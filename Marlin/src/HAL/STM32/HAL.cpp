@@ -42,7 +42,7 @@
   #endif
 #endif
 
-#if HAS_SD_HOST_DRIVE
+#if HAL_SD_HOST_DRIVE
   #include "sd/msc_sd.h"
   #include <usbd_cdc_if.h>
 #endif
@@ -66,7 +66,7 @@ void MarlinHAL::init() {
   // Ensure F_CPU is a constant expression.
   // If the compiler breaks here, it means that delay code that should compute at compile time will not work.
   // So better safe than sorry here.
-  constexpr int cpuFreq = F_CPU;
+  constexpr unsigned int cpuFreq = F_CPU;
   UNUSED(cpuFreq);
 
   #if HAS_MEDIA && DISABLED(ONBOARD_SDIO) && PIN_EXISTS(SD_SS)
@@ -93,7 +93,7 @@ void MarlinHAL::init() {
 
   TERN_(POSTMORTEM_DEBUGGING, install_min_serial());    // Install the min serial handler
 
-  TERN_(HAS_SD_HOST_DRIVE, MSC_SD_init());              // Enable USB SD card access
+  TERN_(HAL_SD_HOST_DRIVE, MSC_SD_init());              // Enable USB SD card access
 
   #if PIN_EXISTS(USB_CONNECT)
     OUT_WRITE(USB_CONNECT_PIN, !USB_CONNECT_INVERTING); // USB clear connection
@@ -114,7 +114,7 @@ void MarlinHAL::idletask() {
 void MarlinHAL::reboot() { NVIC_SystemReset(); }
 
 uint8_t MarlinHAL::get_reset_source() {
-  return
+  return (
     #ifdef RCC_FLAG_IWDGRST // Some sources may not exist...
       RESET != __HAL_RCC_GET_FLAG(RCC_FLAG_IWDGRST)  ? RST_WATCHDOG :
     #endif
@@ -134,7 +134,7 @@ uint8_t MarlinHAL::get_reset_source() {
       RESET != __HAL_RCC_GET_FLAG(RCC_FLAG_PORRST)   ? RST_POWER_ON :
     #endif
     0
-  ;
+  );
 }
 
 void MarlinHAL::clear_reset_source() { __HAL_RCC_CLEAR_RESET_FLAGS(); }
@@ -167,7 +167,38 @@ extern "C" {
 }
 
 // Reset the system to initiate a firmware flash
-WEAK void flashFirmware(const int16_t) { hal.reboot(); }
+WEAK void flashFirmware(const int16_t) {
+
+  #ifdef BOOTLOADER_KATAPULT
+
+    /**
+     * Request the Katapult bootloader (https://github.com/Arksine/katapult) to stay
+     * resident on reboot so new firmware can be flashed (e.g., with Katapult's
+     * flashtool.py) without pressing any BOOT / RESET buttons.
+     *
+     * Katapult stores the signature "CanBoot!" in the 8 bytes preceding its reset
+     * handler and on startup checks the 8 bytes at its initial stack pointer for the
+     * request key written here. If no (or an unexpected) bootloader is installed
+     * this reduces to a plain reboot.
+     */
+    static constexpr uint64_t KATAPULT_SIGNATURE = 0x21746F6F426E6143ULL, // "CanBoot!"
+                              KATAPULT_REQUEST   = 0x5984E3FA6CA1589BULL;
+    const uint32_t * const bl_vectors = (uint32_t*)FLASH_BASE;
+    uint64_t * const boot_sig = (uint64_t*)(bl_vectors[1] - 9),  // 8 bytes before the (Thumb) reset handler
+             * const req_sig  = (uint64_t*)bl_vectors[0];        // Top of the bootloader stack
+    if (!((uintptr_t)boot_sig & 0x7) && !((uintptr_t)req_sig & 0x7) && *boot_sig == KATAPULT_SIGNATURE) {
+      __disable_irq();
+      *req_sig = KATAPULT_REQUEST;
+      #if __CORTEX_M == 7
+        SCB_CleanDCache_by_Addr((uint32_t*)req_sig, sizeof(*req_sig));
+      #endif
+      NVIC_SystemReset();
+    }
+
+  #endif // BOOTLOADER_KATAPULT
+
+  hal.reboot();
+}
 
 // Maple Compatibility
 volatile uint32_t systick_uptime_millis = 0;

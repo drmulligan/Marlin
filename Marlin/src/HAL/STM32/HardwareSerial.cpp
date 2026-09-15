@@ -209,7 +209,7 @@ HAL_HardwareSerial::HAL_HardwareSerial(void *peripheral) {
     }
   #endif
 
-  else { // else get the pins of the first peripheral occurence in PinMap
+  else { // else get the pins of the first peripheral occurrence in PinMap
     _serial.pin_rx = pinmap_pin(peripheral, PinMap_UART_RX);
     _serial.pin_tx = pinmap_pin(peripheral, PinMap_UART_TX);
   }
@@ -233,6 +233,12 @@ void HAL_HardwareSerial::init(PinName _rx, PinName _tx) {
   _serial.pin_tx  = _tx;
   _serial.tx_buff = _tx_buffer;
   _serial.tx_head = _serial.tx_tail = 0;
+
+  // RTS/CTS were added to serial_t in STM32 core 2.3.0 and must be initialized
+  #if defined(STM32_CORE_VERSION) && STM32_CORE_VERSION >= 0x02030000
+    _serial.pin_rts = NC;
+    _serial.pin_cts = NC;
+  #endif
 }
 
 // Actual interrupt handlers //////////////////////////////////////////////////////////////

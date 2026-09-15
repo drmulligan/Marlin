@@ -423,7 +423,7 @@
 
     #define SD_DETECT_PIN            EXP2_07_PIN
 
-  #else // !CR10_STOCKDISPLAY
+  #else
 
     #define LCD_PINS_RS              EXP1_04_PIN
 
@@ -510,7 +510,7 @@
 
     #endif // !FYSETC_MINI_12864
 
-  #endif // !CR10_STOCKDISPLAY
+  #endif
 
 #endif // HAS_WIRED_LCD
 
